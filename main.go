@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go/v3"
@@ -19,7 +21,7 @@ type Topic struct {
 	FutureScope  []string `json:"future_scope"`
 }
 
-var TopicsSchema = GenerateSchema[[]Topic]()
+var TopicsSchema = GenerateSchema[Topic]()
 
 func GenerateSchema[T any]() interface{} {
 	reflector := jsonschema.Reflector{
@@ -77,15 +79,48 @@ func askAI(prompt string) (string, error) {
 }
 
 func main() {
-	subject_name := "Optimization Techniques"
+	subject_name := "ttyDB (talk to your database): A jupyter-notebook style tool that allows querying data in natural language"
 
-	prompt := fmt.Sprintf("Create detailed PPT content for the topic: %s. Include title, introduction, tech stack, methodology, and future scope.", subject_name)
+	prompt := fmt.Sprintf("Create detailed PPT content for the topic: %s. Include title, introduction, tech stack, methodology, and future scope. Do not include any emojis/special characters, it'll all be handled elsewhere", subject_name)
 	response, err := askAI(prompt)
 	if err != nil {
 		log.Fatalf("Error asking AI: %v", err)
 	}
 
 	fmt.Println("AI Response:")
-	fmt.Println(response)
+	// fmt.Println(response)
 
+	UnmarshaledResponse := Topic{}
+	err = json.Unmarshal([]byte(response), &UnmarshaledResponse)
+	if err != nil {
+		log.Fatalf("Error unmarshaling AI response: %v", err)
+	}
+
+	fmt.Printf("Unmarshaled Response: %+v\n", UnmarshaledResponse)
+
+	data := Topic{
+		Title:        UnmarshaledResponse.Title,
+		Introduction: UnmarshaledResponse.Introduction,
+		TechStack:    UnmarshaledResponse.TechStack,
+		Methodology:  UnmarshaledResponse.Methodology,
+		FutureScope:  UnmarshaledResponse.FutureScope,
+	}
+
+	os.WriteFile(subject_name+".json", []byte(response), 0644)
+
+	// Write a typst file
+	typstContent := fmt.Sprintf(`= Title: "%s"
+	= Introduction
+%s
+
+	= Tech Stack
+%s
+
+	= Methodology
+%s
+
+	= Future Scope
+%s
+`, data.Title, data.Introduction, strings.Join((data.TechStack), "\n- "), strings.Join(data.Methodology, "\n- "), strings.Join(data.FutureScope, "\n- "))
+	os.WriteFile(subject_name+".typ", []byte(typstContent), 0644)
 }
